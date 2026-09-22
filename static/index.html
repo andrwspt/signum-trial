@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signum v12 — Cognitive Graph</title>
+<style>
+:root {
+  --bg: #0a0a0f; --panel: #12121a; --panel-2: #1a1a24; --border: #2a2a3a;
+  --fg: #e8e8f0; --muted: #8888a0; --accent: #6C63FF; --accent-2: #FF6584;
+  --green: #43B581; --orange: #FFA94D; --blue: #6B9BD2; --purple: #845EF7;
+  --teal: #2EC4B6; --radius: 6px; --shadow: 0 2px 16px rgba(0,0,0,.4);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 13px; overflow: hidden; }
+#app { display: flex; flex-direction: column; height: 100vh; }
+#topbar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--panel); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+#topbar .brand { font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 6px; }
+#topbar .brand .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); }
+#topbar .spacer { flex: 1; }
+#topbar .status { font-size: 11px; color: var(--muted); display: flex; gap: 10px; }
+#topbar input[type=range] { width: 80px; }
+#topbar button { background: var(--panel-2); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; }
+#topbar button:hover { border-color: var(--accent); }
+#topbar button.primary { background: var(--accent); color: #fff; border: none; }
+#grid-host { flex: 1; overflow: auto; padding: 8px; }
+#grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: minmax(280px, auto); gap: 8px; min-height: 100%; }
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); display: flex; flex-direction: column; resize: both; overflow: auto; min-width: 280px; min-height: 200px; position: relative; }
+.panel .ph { display: flex; align-items: center; justify-content: space-between; padding: 5px 10px; background: var(--panel-2); border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .3px; flex-shrink: 0; border-radius: var(--radius) var(--radius) 0 0; }
+.panel .ph .close { cursor: pointer; color: var(--muted); font-size: 14px; padding: 0 4px; border-radius: 3px; }
+.panel .ph .close:hover { color: var(--accent-2); background: rgba(255,101,132,.15); }
+.panel .pb { flex: 1; overflow: auto; padding: 10px; }
+textarea { width: 100%; background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 8px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; resize: vertical; min-height: 80px; outline: none; }
+textarea:focus { border-color: var(--accent); }
+button { background: var(--accent); color: #fff; border: none; border-radius: 4px; padding: 6px 12px; font-size: 11px; font-weight: 600; cursor: pointer; }
+button:hover { filter: brightness(1.15); }
+button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--border); }
+button.ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 8px; margin-bottom: 6px; }
+.chunk-card { border-left: 3px solid var(--accent); padding: 6px 8px; margin-bottom: 4px; background: rgba(108,99,255,.05); border-radius: 0 4px 4px 0; cursor: pointer; transition: background .15s; }
+.chunk-card:hover { background: rgba(108,99,255,.15); }
+.chunk-card.selected { border-left-color: var(--accent-2); background: rgba(255,101,132,.15); }
+.chunk-card .chunk-meta { font-size: 10px; color: var(--muted); }
+.empty { text-align: center; padding: 20px 10px; color: var(--muted); font-size: 12px; }
+.spinner { width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.source-text { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word; }
+.source-text .hl { background: rgba(108,99,255,.25); border-bottom: 2px solid var(--accent); cursor: pointer; transition: background .15s; }
+.source-text .hl:hover { background: rgba(108,99,255,.45); }
+.source-text .hl.selected { background: rgba(255,101,132,.35); border-bottom-color: var(--accent-2); }
+.conflict-badge { display: inline-block; background: var(--accent-2); color: #fff; font-size: 9px; padding: 1px 4px; border-radius: 3px; margin-left: 4px; }
+.activation-bar { display: inline-block; width: 30px; height: 4px; background: var(--border); border-radius: 2px; margin-left: 4px; vertical-align: middle; }
+.activation-bar .fill { height: 100%; background: var(--accent); border-radius: 2px; }
+.chat-msg { padding: 6px 8px; margin-bottom: 6px; border-radius: 4px; }
+.chat-msg.user { background: var(--panel-2); border-left: 2px solid var(--accent); }
+.chat-msg.assistant { background: rgba(67,181,129,.08); border-left: 2px solid var(--green); }
+.chat-msg .meta { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+.citation { display: inline-block; background: var(--accent); color: #fff; font-size: 9px; padding: 1px 4px; border-radius: 3px; margin-right: 4px; cursor: pointer; }
+.link-supports { color: var(--green); }
+.link-contrasts { color: var(--accent-2); }
+.link-causes { color: var(--orange); }
+.link-precedes { color: var(--blue); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="brand"><span class="dot"></span><span>Signum v12</span></div>
+    <div class="spacer"></div>
+    <div class="status">
+      <span id="status-time">—</span>
+      <span id="status-chunks">0 chunks</span>
+      <span id="status-clusters">0 clusters</span>
+      <span id="status-docs">0 docs</span>
+      <span id="status-conflicts">0 conflicts</span>
+    </div>
+    <span style="font-size:11px;color:var(--muted)">threshold</span>
+    <input type="range" id="cluster-threshold" min="0.1" max="0.95" step="0.05" value="0.75">
+    <span id="threshold-val" style="font-size:11px;color:var(--muted)">0.75</span>
+    <button id="consolidate-btn" title="Trigger consolidation">⟳ Consolidate</button>
+    <button id="add-doc">+ Document</button>
+    <button id="add-chat">+ Chat</button>
+    <button id="add-graph">+ Graph</button>
+  </header>
+  <div id="grid-host"><main id="grid"></main></div>
+</div>
+<script>
+(function(){
+"use strict";
+const API = window.location.origin + "/api";
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const STATE = { panels: [], nextId: 1, selectedChunk: null };
+
+// ===== Event Bus =====
+const BUS = {};
+function on(evt, fn) { (BUS[evt] = BUS[evt] || []).push(fn); }
+function emit(evt, data) { (BUS[evt] || []).forEach(fn => fn(data)); }
+
+async function api(url, opts) {
+  const r = await fetch(url, { headers: {"Content-Type":"application/json"}, ...opts });
+  if (!r.ok) throw new Error(r.status + ": " + (await r.text()).slice(0,200));
+  return r.json();
+}
+const get = ep => api(API + "/" + ep);
+const post = (ep, body) => api(API + "/" + ep, { method:"POST", body: JSON.stringify(body) });
+
+// ===== Panel System =====
+const COLORS = { input:"input", documents:"documents", sync:"sync", search:"search", chunks:"chunks", topology:"topology", cabinet:"cabinet", chat:"chat", graph:"graph", conflicts:"conflicts" };
+const LABELS = { input:"Input", documents:"Source Document", sync:"Source Sync", search:"Search", chunks:"Chunks", topography:"Topography", cabinet:"Cabinet", chat:"RAG Chat", graph:"Knowledge Graph", conflicts:"Conflicts" };
+
+function createPanel(type) {
+  const id = STATE.nextId++;
+  const p = { id, type, color: COLORS[type] || "input" };
+  STATE.panels.push(p);
+  renderPanel(p);
+  emit("panel:created", p);
+  return p;
+}
+
+function renderPanel(p) {
+  let el = document.getElementById("panel-" + p.id);
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "panel";
+    el.id = "panel-" + p.id;
+    el.dataset.color = p.color;
+    $("#grid").appendChild(el);
+  }
+  el.innerHTML = `<div class="ph"><span>${LABELS[p.type]||p.type}</span><span class="close">×</span></div><div class="pb" id="pb-${p.id}"></div>`;
+  el.querySelector(".close").onclick = () => { el.remove(); STATE.panels = STATE.panels.filter(x=>x.id!==p.id); emit("panel:removed", p); };
+  renderPanelBody(p, el.querySelector(".pb"));
+}
+
+function renderPanelBody(p, host) {
+  if (!host) return;
+  const pid = p.id;
+  switch(p.type) {
+    case "input":
+      host.innerHTML = `<textarea id="input-text-${pid}" placeholder="Paste text here to ingest into Signum..."></textarea>
+        <div class="btn-row"><button id="input-send-${pid}" class="primary">Ingest</button><button class="ghost" id="input-parse-${pid}">Parse + Save</button><button class="ghost" id="input-clear-${pid}">Clear</button></div>
+        <div id="input-result-${pid}" style="margin-top:6px;font-size:11px;color:var(--muted)"></div>`;
+      $(`#input-send-${pid}`).onclick = async () => {
+        const text = $(`#input-text-${pid}`).value.trim(); if(!text) return;
+        try { const r = await post("input",{text,tags:[]}); $(`#input-result-${pid}`).textContent = `✓ ${r.chunks_count} chunks · ${r.cluster_count} clusters`; emit("data:ingest", r); }
+        catch(e) { $(`#input-result-${pid}`).textContent = "✗ " + e.message; }
+      };
+      $(`#input-parse-${pid}`).onclick = async () => {
+        const text = $(`#input-text-${pid}`).value.trim(); if(!text) return;
+        try { const r = await post("parse_and_save",{text}); $(`#input-result-${pid}`).textContent = r.ok ? `✓ saved ${r.chunks_count} chunks` : "✗ "+r.error; emit("data:ingest", r); }
+        catch(e) { $(`#input-result-${pid}`).textContent = "✗ " + e.message; }
+      };
+      $(`#input-clear-${pid}`).onclick = () => { $(`#input-text-${pid}`).value=""; $(`#input-result-${pid}`).textContent=""; };
+      break;
+
+    case "documents":
+      host.innerHTML = `<div id="doc-list-${pid}"><div class="empty">Loading documents...</div></div>
+        <div id="doc-view-${pid}" style="margin-top:10px"></div>`;
+      const refreshDocs = async () => {
+        try {
+          const docs = await get("documents");
+          const list = $(`#doc-list-${pid}`);
+          if (!docs.documents || !docs.documents.length) { list.innerHTML = '<div class="empty">No documents yet. Use Input to ingest text.</div>'; return; }
+          list.innerHTML = docs.documents.map(d =>
+            `<div class="chunk-card" data-doc-id="${d.id}" onclick="window._signumLoadDoc('${d.id}',${pid})">
+              <div class="chunk-meta">${esc(d.path)} · v${d.version} · ${d.author}</div>
+              <div style="font-size:10px;color:var(--muted)">${esc((d.content||"").slice(0,100))}</div>
+            </div>`
+          ).join("");
+        } catch(e) { $(`#doc-list-${pid}`).innerHTML = `<div class="empty">error: ${esc(e.message)}</div>`; }
+      };
+      refreshDocs();
+      on("data:ingest", refreshDocs);
+      window._signumLoadDoc = async (docId, pid) => {
+        try {
+          const chunks = await get("documents/" + docId + "/chunks");
+          const docResp = await get("documents/" + docId);
+          const doc = docResp;
+          const view = $(`#doc-view-${pid}`);
+          if (!doc) { view.innerHTML = '<div class="empty">document not found</div>'; return; }
+          // Render text with chunk highlights
+          let html = '';
+          let cursor = 0;
+          const sortedChunks = (doc.chunks || []).sort((a,b) => a.start - b.start);
+          sortedChunks.forEach((c) => {
+            if (c.start > cursor) html += esc(doc.content.slice(cursor, c.start));
+            html += `<span class="hl" data-chunk-id="${c.id}" onclick="window._signumSelectChunk('${c.id}',${pid})">${esc(c.text)}</span>`;
+            cursor = c.end;
+          });
+          if (cursor < doc.content.length) html += esc(doc.content.slice(cursor));
+          view.innerHTML = `<div class="source-text">${html}</div>`;
+        } catch(e) { console.error(e); }
+      };
+      break;
+
+    case "sync":
+      host.innerHTML = `<div id="sync-info-${pid}"><div class="empty">Select a chunk from Source Document to edit.</div></div>
+        <div id="sync-editor-${pid}" style="margin-top:10px"></div>`;
+      on("chunk:selected", (chunk) => {
+        const info = $(`#sync-info-${pid}`);
+        const editor = $(`#sync-editor-${pid}`);
+        if (!chunk) { info.innerHTML = '<div class="empty">Select a chunk to edit.</div>'; editor.innerHTML = ''; return; }
+        info.innerHTML = `<div class="card"><strong>Chunk ${esc(chunk.id)}</strong><br><span style="color:var(--muted);font-size:10px">offset ${chunk.start}-${chunk.end} · cluster ${chunk.cluster||-1} · activation ${(chunk.activation||1).toFixed(2)}</span></div>`;
+        editor.innerHTML = `<textarea id="sync-text-${pid}" style="min-height:80px">${esc(chunk.text)}</textarea>
+          <div class="btn-row">
+            <button id="sync-save-${pid}" class="primary">Save to Document</button>
+            <button class="ghost" id="sync-resize-${pid}">Resize Boundary</button>
+          </div>
+          <div id="sync-result-${pid}" style="margin-top:6px;font-size:11px;color:var(--muted)"></div>`;
+        $(`#sync-save-${pid}`).onclick = async () => {
+          const newText = $(`#sync-text-${pid}`).value;
+          try {
+            const r = await post("chunk_edit", { chunk_id: chunk.id, new_text: newText });
+            $(`#sync-result-${pid}`).textContent = r.ok ? "✓ synced to document" : "✗ failed";
+            emit("data:ingest", {});
+          } catch(e) { $(`#sync-result-${pid}`).textContent = "✗ " + e.message; }
+        };
+      });
+      break;
+
+    case "search":
+      host.innerHTML = `<div class="btn-row"><input id="search-q-${pid}" placeholder="Ask your knowledge base..." style="flex:1"><button id="search-go-${pid}">Search</button></div>
+        <div id="search-results-${pid}"><div class="empty">Type a query and hit Search.</div></div>`;
+      $(`#search-go-${pid}`).onclick = async () => {
+        const q = $(`#search-q-${pid}`).value.trim(); if(!q) return;
+        $(`#search-results-${pid}`).innerHTML = '<div class="empty"><span class="spinner"></span> searching…</div>';
+        try { const r = await get("search?q="+encodeURIComponent(q)+"&limit=10");
+          if(!r.results.length){ $(`#search-results-${pid}`).innerHTML='<div class="empty">no results for "'+esc(q)+'"</div>'; return; }
+          $(`#search-results-${pid}`).innerHTML = r.results.map(x=>`<div class="chunk-card"><div class="chunk-meta">${esc(x.chunk_id||"")} · sim ${x.similarity}</div><div>${esc((x.text||"").slice(0,200))}</div></div>`).join("");
+        } catch(e){ $(`#search-results-${pid}`).innerHTML=`<div class="empty">error: ${esc(e.message)}</div>`; }
+      };
+      break;
+
+    case "chunks":
+      host.innerHTML = `<div id="chunks-list-${pid}"><div class="empty">Loading chunks...</div></div>`;
+      const refreshChunks = async () => {
+        try {
+          const r = await get("chunks?limit=30");
+          const cs = r.chunks || [];
+          const list = $(`#chunks-list-${pid}`);
+          if(!cs.length){ list.innerHTML = '<div class="empty">No chunks yet.</div>'; return; }
+          list.innerHTML = cs.map(c=>{
+            const act = (c.activation||1);
+            const actPct = Math.round(act * 100);
+            return `<div class="chunk-card" data-chunk-id="${c.id}" onclick="window._signumSelectChunk('${c.id}',${pid})">
+              <div class="chunk-meta">chunk ${esc(c.id)} · offset ${c.start}-${c.end} · cluster ${c.cluster??-1}
+                <span class="activation-bar"><span class="fill" style="width:${actPct}%"></span></span>
+              </div>
+              <div style="margin-top:4px">${esc((c.text||"").slice(0,200))}</div>
+            </div>`;
+          }).join("");
+        } catch(e) { $(`#chunks-list-${pid}`).innerHTML = `<div class="empty">error: ${esc(e.message)}</div>`; }
+      };
+      refreshChunks();
+      on("data:ingest", refreshChunks);
+      window._signumSelectChunk = async (chunkId, pid) => {
+        STATE.selectedChunk = chunkId;
+        // Fetch full chunk
+        try {
+          const r = await get("chunks/" + chunkId);
+          emit("chunk:selected", r);
+        } catch(e) { console.error(e); }
+      };
+      break;
+
+    case "topology":
+      host.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:300px;color:var(--muted)">3D Topography<br><small>Ingest data to populate</small></div>`;
+      const refreshTopo = async () => {
+        try {
+          const r = await get("topology");
+          if(!r.points||!r.points.length) return;
+          let scale=1, offX=0, offY=0, dragging=false, lastX=0, lastY=0;
+          let rotX=0.5, rotY=0.5;
+          const renderView = () => {
+            const W = 700, H = 300;
+            host.innerHTML = `<div style="font-size:11px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+              <span>${r.points.length} points · ${(r.clusters||[]).length} clusters · zoom ${(scale*100).toFixed(0)}%</span>
+              <span><button id="topo-reset-${pid}" class="ghost" style="padding:1px 6px;font-size:10px">reset</button></span>
+            </div>
+            <div style="position:relative;width:100%;height:300px;">
+              <canvas id="topo-canvas-${pid}" style="width:100%;height:300px;background:#0a0a0f;border-radius:4px;cursor:grab;touch-action:none"></canvas>
+              <div id="topo-tip-${pid}" style="position:absolute;display:none;background:#1a1a24;border:1px solid var(--accent);border-radius:4px;padding:6px 8px;font-size:10px;color:var(--fg);max-width:200px;pointer-events:none;z-index:10"></div>
+            </div>`;
+            const cv = document.getElementById(`topo-canvas-${pid}`);
+            cv.width = cv.offsetWidth || 600; cv.height = 300;
+            const ctx = cv.getContext("2d");
+            const colors=["#6C63FF","#FF6584","#43B581","#FFA94D","#6B9BD2","#845EF7"];
+            let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity,minZ=Infinity,maxZ=-Infinity;
+            r.points.forEach(pt=>{ minX=Math.min(minX,pt.x3||0); maxX=Math.max(maxX,pt.x3||0); minY=Math.min(minY,pt.y3||0); maxY=Math.max(maxY,pt.y3||0); minZ=Math.min(minZ,pt.z3||0); maxZ=Math.max(maxZ,pt.z3||0); });
+            const rangeX=(maxX-minX)||1, rangeY=(maxY-minY)||1, rangeZ=(maxZ-minZ)||1;
+            const project = (x,y,z) => {
+              const rx=(x-minX)/rangeX*2-1, ry=(y-minY)/rangeY*2-1, rz=(z-minZ)/rangeZ*2-1;
+              const cosY=Math.cos(rotY), sinY=Math.sin(rotY);
+              const x1=rx*cosY-rz*sinY, z1=rx*sinY+rz*cosY;
+              const cosX=Math.cos(rotX), sinX=Math.sin(rotX);
+              const y1=ry*cosX-z1*sinX, z2=ry*sinX+z1*cosX;
+              const fov=3, persp=fov/(fov-z2);
+              return {px:x1*persp, py:y1*persp, z:z2, persp};
+            };
+            const screen = (x,y) => [cv.width/2+offX+x*80*scale, cv.height/2+offY+y*80*scale];
+            const draw = () => {
+              ctx.save(); ctx.setTransform(1,0,0,1,0,0);
+              ctx.fillStyle="#0a0a0f"; ctx.fillRect(0,0,cv.width,cv.height);
+              const projected = r.points.map((pt,idx)=>{
+                const p=project(pt.x3||0,pt.y3||0,pt.z3||0);
+                const [sx,sy]=screen(p.px,p.py);
+                return {sx,sy,z:p.z,persp:p.persp,pt,idx};
+              });
+              projected.sort((a,b)=>a.z-b.z);
+              projected.forEach(p=>{
+                const radius=Math.max(2,Math.min(8,5/p.persp/scale*0.8));
+                ctx.beginPath(); ctx.arc(p.sx,p.sy,radius,0,Math.PI*2);
+                const alpha=Math.max(0.4,Math.min(1,(1-p.z)/1.5+0.3));
+                ctx.fillStyle=colors[(p.pt.cluster||0)%colors.length];
+                ctx.globalAlpha=alpha; ctx.fill(); ctx.globalAlpha=1;
+              });
+              ctx.restore();
+            };
+            draw();
+            cv.onmousemove = (e) => {
+              if(dragging) return;
+              const rect=cv.getBoundingClientRect();
+              const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+              let nearest=null, minDist=15;
+              r.points.forEach(pt=>{
+                const p=project(pt.x3||0,pt.y3||0,pt.z3||0);
+                const [sx,sy]=screen(p.px,p.py);
+                const d=Math.hypot(sx-mx, sy-my);
+                if(d<minDist){ minDist=d; nearest=pt; }
+              });
+              const tip=document.getElementById(`topo-tip-${pid}`);
+              if(nearest){
+                tip.style.display='block';
+                tip.style.left=Math.min(cv.offsetWidth-210,mx+15)+'px';
+                tip.style.top=my+10+'px';
+                tip.innerHTML=`<strong>chunk ${nearest.chunk_id.slice(0,8)}</strong><br>${(nearest.text||'').slice(0,120)}<br><span style="color:var(--muted)">cluster ${nearest.cluster??-1} · activation ${(nearest.activation||1).toFixed(2)}</span>`;
+              } else { tip.style.display='none'; }
+            };
+            cv.onmouseleave = ()=>{ document.getElementById(`topo-tip-${pid}`).style.display='none'; };
+            cv.onwheel = (e) => {
+              e.preventDefault();
+              const rect=cv.getBoundingClientRect();
+              const mx=e.clientX-rect.left-cv.width/2, my=e.clientY-rect.top-cv.height/2;
+              const factor=e.deltaY>0?0.85:1.18;
+              const newScale=Math.max(0.3,Math.min(15,scale*factor));
+              offX=mx-(mx-offX)*(newScale/scale); offY=my-(my-offY)*(newScale/scale);
+              scale=newScale; draw();
+            };
+            cv.onmousedown = (e) => { dragging=true; lastX=e.clientX; lastY=e.clientY; cv.style.cursor='grabbing'; };
+            const onMove = (e) => { if(!dragging) return;
+              if(e.shiftKey){ rotY+=(e.clientX-lastX)*0.01; rotX+=(e.clientY-lastY)*0.01; }
+              else { offX+=e.clientX-lastX; offY+=e.clientY-lastY; }
+              lastX=e.clientX; lastY=e.clientY; draw();
+            };
+            const onUp = () => { dragging=false; cv.style.cursor='grab'; };
+            window.addEventListener("mousemove", onMove);
+            window.addEventListener("mouseup", onUp);
+            $(`#topo-reset-${pid}`).onclick = () => { scale=1; offX=0; offY=0; rotX=0.5; rotY=0.5; draw(); };
+          };
+          renderView();
+        } catch(e) { console.error(e); }
+      };
+      refreshTopo();
+      on("data:ingest", refreshTopo);
+      break;
+
+    case "cabinet":
+      host.innerHTML = `<div id="cabinet-list-${pid}"><div class="empty">Loading clusters...</div></div>`;
+      const refreshCabinet = async () => {
+        try {
+          const r = await get("clusters");
+          const cls = r.clusters || [];
+          const list = $(`#cabinet-list-${pid}`);
+          if(!cls.length){ list.innerHTML='<div class="empty">No clusters yet.</div>'; return; }
+          list.innerHTML = cls.map(c=>`<div class="card" style="border-left:3px solid var(--blue);cursor:pointer">
+            <strong>${esc(c.name)}</strong> <span style="color:var(--muted);font-size:10px">${c.member_count} members</span><br>
+            <span style="font-size:10px;color:var(--muted)">${(c.tags||[]).map(t=>"#"+esc(t)).join(" ")}</span>
+          </div>`).join("");
+        } catch(e) { $(`#cabinet-list-${pid}`).innerHTML = `<div class="empty">error: ${esc(e.message)}</div>`; }
+      };
+      refreshCabinet();
+      on("data:ingest", refreshCabinet);
+      break;
+
+    case "chat":
+      host.innerHTML = `<div id="chat-history-${pid}"><div class="empty">Ask questions about your knowledge base.</div></div>
+        <div class="btn-row" style="margin-top:8px"><input id="chat-input-${pid}" placeholder="Ask..." style="flex:1"><button id="chat-send-${pid}">Send</button></div>`;
+      const chatHistory = [];
+      $(`#chat-send-${pid}`).onclick = async () => {
+        const input = $(`#chat-input-${pid}`);
+        const q = input.value.trim(); if(!q) return;
+        chatHistory.push({role:"user", content:q});
+        input.value = '';
+        $(`#chat-history-${pid}`).innerHTML = chatHistory.map(m =>
+          `<div class="chat-msg ${m.role}"><div class="meta">${m.role}</div><div>${esc(m.content)}</div>${(m.citations||[]).map(c=>`<span class="citation" onclick="window._signumSelectChunk('${c.id}',${pid})">${esc(c.id.slice(0,8))} · ${c.sim.toFixed(2)}</span>`).join("")}</div>`
+        ).join("") + '<div class="empty"><span class="spinner"></span></div>';
+        try {
+          const r = await post("rag", { query: q, limit: 5 });
+          const answer = r.results ? `Found ${r.results.length} relevant chunks:` : "No results.";
+          const citations = (r.results||[]).map(x => ({id:x.chunk_id, sim:x.similarity}));
+          const msg = {role:"assistant", content: answer + "\n\n" + (r.results||[]).map(r => `• ${r.text.slice(0,150)} (sim: ${r.similarity})`).join("\n"), citations};
+          chatHistory.push(msg);
+          $(`#chat-history-${pid}`).innerHTML = chatHistory.map(m =>
+            `<div class="chat-msg ${m.role}"><div class="meta">${m.role}</div><div>${esc(m.content).replace(/\n/g,"<br>")}</div>${(m.citations||[]).map(c=>`<span class="citation" onclick="window._signumSelectChunk('${c.id}',${pid})">${esc(c.id.slice(0,8))} · ${c.sim.toFixed(2)}</span>`).join("")}</div>`
+          ).join("");
+        } catch(e) {
+          chatHistory.push({role:"assistant", content:"Error: "+e.message});
+          $(`#chat-history-${pid}`).innerHTML = chatHistory.map(m =>
+            `<div class="chat-msg ${m.role}"><div class="meta">${m.role}</div><div>${esc(m.content).replace(/\n/g,"<br>")}</div></div>`
+          ).join("");
+        }
+      };
+      break;
+
+    case "graph":
+      host.innerHTML = `<div id="graph-canvas-${pid}"><div class="empty"><span class="spinner"></span> loading graph...</div></div>`;
+      const refreshGraph = async () => {
+        try {
+          const r = await get("graph");
+          const nodes = r.nodes || [];
+          const edges = r.edges || [];
+          const container = $(`#graph-canvas-${pid}`);
+          if(!nodes.length){ container.innerHTML = '<div class="empty">No graph data yet.</div>'; return; }
+          // Simple force-directed layout simulation
+          const W = 600, H = 280;
+          const sim = nodes.map(n => ({id:n.id, x:Math.random()*W, y:Math.random()*H, vx:0, vy:0, cluster:n.cluster||0, activation:n.activation||1, text:(n.text||"").slice(0,50)}));
+          for(let iter=0; iter<100; iter++){
+            // Repulsion
+            for(let i=0;i<sim.length;i++) for(let j=i+1;j<sim.length;j++){
+              const dx=sim[i].x-sim[j].x, dy=sim[i].y-sim[j].y;
+              const dist=Math.max(1,Math.hypot(dx,dy));
+              const force=500/(dist*dist);
+              sim[i].vx+=dx/dist*force; sim[i].vy+=dy/dist*force;
+              sim[j].vx-=dx/dist*force; sim[j].vy-=dy/dist*force;
+            }
+            // Attraction along edges
+            edges.forEach(e=>{
+              const s=sim.find(n=>n.id===e.source_chunk_id);
+              const t=sim.find(n=>n.id===e.target_chunk_id);
+              if(!s||!t) return;
+              const dx=t.x-s.x, dy=t.y-s.y;
+              const dist=Math.max(1,Math.hypot(dx,dy));
+              const force=dist*0.01*e.weight;
+              s.vx+=dx/dist*force; s.vy+=dy/dist*force;
+              t.vx-=dx/dist*force; t.vy-=dy/dist*force;
+            });
+            // Center gravity
+            sim.forEach(n=>{ n.vx+=(W/2-n.x)*0.01; n.vy+=(H/2-n.y)*0.01; n.x+=n.vx*0.5; n.y+=n.vy*0.5; n.vx*=0.9; n.vy*=0.9; });
+          }
+          const colors=["#6C63FF","#FF6584","#43B581","#FFA94D","#6B9BD2","#845EF7"];
+          const linkColors={supports:"#43B581",contrasts:"#FF6584",causes:"#FFA94D",precedes:"#6B9BD2",references:"#8888a0"};
+          let svg = `<svg width="100%" height="280" style="background:#0a0a0f;border-radius:4px">`;
+          edges.forEach(e=>{
+            const s=sim.find(n=>n.id===e.source_chunk_id);
+            const t=sim.find(n=>n.id===e.target_chunk_id);
+            if(!s||!t) return;
+            const color=linkColors[e.link_type]||"#8888a0";
+            svg+=`<line x1="${s.x}" y1="${s.y}" x2="${t.x}" y2="${t.y}" stroke="${color}" stroke-opacity="0.4" stroke-width="${Math.max(1,e.weight*3)}"/>`;
+          });
+          sim.forEach(n=>{
+            const r=Math.max(3,Math.min(8,n.activation*8));
+            svg+=`<circle cx="${n.x}" cy="${n.y}" r="${r}" fill="${colors[n.cluster%colors.length]}" opacity="${Math.max(0.3,n.activation)}" data-id="${n.id}"><title>${esc(n.text)}</title></circle>`;
+          });
+          svg+=`</svg>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">
+              <span class="link-supports">■ supports</span>
+              <span class="link-contrasts" style="margin-left:6px">■ contrasts</span>
+              <span class="link-causes" style="margin-left:6px">■ causes</span>
+              <span class="link-precedes" style="margin-left:6px">■ precedes</span>
+              <span style="margin-left:6px">■ references</span>
+              <span style="float:right">${nodes.length} nodes · ${edges.length} edges</span>
+            </div>`;
+          container.innerHTML = svg;
+        } catch(e) { $(`#graph-canvas-${pid}`).innerHTML = `<div class="empty">error: ${esc(e.message)}</div>`; }
+      };
+      refreshGraph();
+      on("data:ingest", refreshGraph);
+      break;
+
+    case "conflicts":
+      host.innerHTML = `<div id="conflicts-list-${pid}"><div class="empty">Loading conflicts...</div></div>`;
+      const refreshConflicts = async () => {
+        try {
+          const r = await get("conflicts");
+          const list = $(`#conflicts-list-${pid}`);
+          if(!r.conflicts||!r.conflicts.length){ list.innerHTML='<div class="empty">No conflicts detected.</div>'; return; }
+          list.innerHTML = r.conflicts.map(c=>`<div class="card" style="border-left:3px solid var(--accent-2)">
+            <div><strong>Conflict #${c.id}</strong> <span style="font-size:10px;color:var(--muted)">similarity ${c.similarity?.toFixed?.(2)||"?"}</span></div>
+            <div style="font-size:10px;color:var(--muted)">A: ${esc(c.chunk_a_id)}</div>
+            <div style="font-size:10px;color:var(--muted)">B: ${esc(c.chunk_b_id)}</div>
+            <div style="font-size:10px;color:var(--muted)">Status: ${c.resolved?'✓ resolved':'⚠ unresolved'}</div>
+            ${!c.resolved?`<div class="btn-row"><button class="ghost" onclick="window._signumResolveConflict(${c.id},'kept_both')">Keep Both</button><button class="ghost" onclick="window._signumResolveConflict(${c.id},'superseded')">Supersede</button></div>`:''}
+          </div>`).join("");
+        } catch(e) { $(`#conflicts-list-${pid}`).innerHTML = `<div class="empty">error: ${esc(e.message)}</div>`; }
+      };
+      refreshConflicts();
+      on("data:ingest", refreshConflicts);
+      window._signumResolveConflict = async (conflictId, resolution) => {
+        try { await post("conflicts_resolve", { conflict_id: conflictId, resolution }); refreshConflicts(); }
+        catch(e) { console.error(e); }
+      };
+      break;
+
+    default:
+      host.innerHTML = `<div class="empty">Panel: ${esc(p.type)}</div>`;
+  }
+}
+
+// ===== Init =====
+function init() {
+  // Seed default panels
+  createPanel("input");
+  createPanel("documents");
+  createPanel("topology");
+  createPanel("cabinet");
+  createPanel("chat");
+  createPanel("graph");
+
+  // Topbar buttons
+  $("#add-doc").onclick = () => { STATE.panels.length < 9 && createPanel("documents"); };
+  $("#add-chat").onclick = () => { STATE.panels.length < 9 && createPanel("chat"); };
+  $("#add-graph").onclick = () => { STATE.panels.length < 9 && createPanel("graph"); };
+
+  // Threshold slider
+  const threshSlider = $("#cluster-threshold");
+  const threshVal = $("#threshold-val");
+  let threshTimeout = null;
+  threshSlider.oninput = () => {
+    threshVal.textContent = threshSlider.value;
+    clearTimeout(threshTimeout);
+    threshTimeout = setTimeout(async () => {
+      try { await post("recluster", { threshold: parseFloat(threshSlider.value) }); emit("data:ingest", {}); } catch(e) { console.error(e); }
+    }, 500);
+  };
+
+  // Consolidate
+  $("#consolidate-btn").onclick = async () => {
+    try { await post("consolidate", {}); emit("data:ingest", {}); $("#consolidate-btn").textContent = "✓ Done"; setTimeout(() => { $("#consolidate-btn").textContent = "⟳ Consolidate"; }, 2000); }
+    catch(e) { console.error(e); }
+  };
+
+  // Status refresh
+  setInterval(async()=>{
+    try{
+      const s = await get("health");
+      $("#status-time").textContent = new Date().toLocaleTimeString();
+      $("#status-chunks").textContent = (s.chunks||0)+" chunks";
+      $("#status-clusters").textContent = (s.clusters||0)+" clusters";
+      $("#status-docs").textContent = (s.documents||0)+" docs";
+      $("#status-conflicts").textContent = (s.conflicts||0)+" conflicts";
+    }catch(e){}
+  }, 5000);
+}
+
+document.addEventListener("DOMContentLoaded", init);
+})();
+</script>
+</body>
+</html>
